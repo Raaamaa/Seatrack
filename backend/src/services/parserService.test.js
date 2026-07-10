@@ -1,4 +1,6 @@
-const { parseSeaBankEmail, detectTransactionType, parseAmount, parseDate, parseMerchant, autoAssignCategory } = require('./parserService');
+const { parseSeaBankEmail, detectTransactionType, parseAmount, parseDate, parseMerchant, autoAssignCategory } = require('./parsers/seabankParser');
+const { parseBcaEmail } = require('./parsers/bcaParser');
+const { parseEmail } = require('./parserService');
 
 describe('Parser Service Utils', () => {
   test('detectTransactionType detects correct types', () => {
@@ -61,7 +63,8 @@ describe('parseSeaBankEmail Integration', () => {
       category: 'Pemasukan',
       notes: '',
       source: 'auto',
-      rawSubject: 'Dana Diterima - SeaBank'
+      rawSubject: 'Dana Diterima - SeaBank',
+      bank: 'SeaBank'
     });
   });
 
@@ -83,18 +86,42 @@ describe('parseSeaBankEmail Integration', () => {
       category: 'Lainnya',
       notes: '',
       source: 'auto',
-      rawSubject: 'Transfer Berhasil - SeaBank'
+      rawSubject: 'Transfer Berhasil - SeaBank',
+      bank: 'SeaBank'
     });
   });
+});
 
-  test('returns null if amount cannot be parsed', () => {
+describe('parseEmail Orchestrator Routing', () => {
+  test('routes SeaBank email based on sender', () => {
     const emailData = {
-      id: 'msg-3',
-      subject: 'Dana Diterima - SeaBank',
-      body: 'Email body without any amount field.'
+      id: 'msg-seabank',
+      subject: 'Notifikasi SeaBank',
+      body: 'Dana sebesar Rp 50.000 dari BUDI UTOMO masuk pada 10/06/2026 14:30'
     };
+    const result = parseEmail(emailData, 'no-reply@sea.com');
+    expect(result.bank).toBe('SeaBank');
+    expect(result.amount).toBe(50000);
+  });
 
-    const result = parseSeaBankEmail(emailData);
-    expect(result).toBeNull();
+  test('routes BCA email based on sender', () => {
+    const emailData = {
+      id: 'msg-bca',
+      subject: 'Transaksi KlikBCA',
+      body: 'Debet sebesar Rp 100,000 ke TOKO INDO pada 10/06/2026'
+    };
+    const result = parseEmail(emailData, 'ebanking@klikbca.com');
+    expect(result.bank).toBe('BCA');
+    expect(result.amount).toBe(100000);
+  });
+
+  test('routes based on subject fallback if sender does not match', () => {
+    const emailData = {
+      id: 'msg-seabank-fallback',
+      subject: 'Your SeaBank Transfer is Successful',
+      body: 'Dana sebesar Rp 12.000 ke TOKO INDO masuk pada 10/06/2026 14:30'
+    };
+    const result = parseEmail(emailData, 'unknown@example.com');
+    expect(result.bank).toBe('SeaBank');
   });
 });
