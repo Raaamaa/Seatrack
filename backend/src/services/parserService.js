@@ -12,9 +12,9 @@ const PATTERNS = {
   DATE_NUMERIC: /(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})/,
 
   // Pengirim/Penerima
-  MERCHANT_TRANSFER_TO: /(?:kepada|ke|tujuan)[:\s]+([A-Za-z0-9\s\-\.]+?)(?:\n|$|dengan|dari)/i,
-  MERCHANT_TRANSFER_FROM: /(?:dari|pengirim)[:\s]+([A-Za-z0-9\s\-\.]+?)(?:\n|$|dengan|ke)/i,
-  MERCHANT_QRIS: /(?:merchant|nama toko|kepada)[:\s]+([A-Za-z0-9\s\-\.]+?)(?:\n|$)/i,
+  MERCHANT_TRANSFER_TO: /(?:kepada|ke|tujuan)[:\s]+([A-Za-z0-9\s\-\.]+?)(?=\s*(?:berhasil|telah|pada|dengan|dari|\n|$))/i,
+  MERCHANT_TRANSFER_FROM: /(?:dari|pengirim)[:\s]+([A-Za-z0-9\s\-\.]+?)(?=\s*(?:telah|berhasil|pada|dengan|ke|\n|$))/i,
+  MERCHANT_QRIS: /(?:merchant|nama toko|kepada|ke)[:\s]+([A-Za-z0-9\s\-\.]+?)(?=\s*(?:berhasil|telah|pada|dengan|ke|\n|$))/i,
 
   // Nomor referensi
   REFERENCE_ID: /(?:no\.?\s*referensi|ref(?:erence)?|id transaksi)[:\s]+([A-Z0-9]+)/i,
@@ -138,7 +138,7 @@ function parseSeaBankEmail(emailData) {
       source: 'auto',
       rawSubject: subject,
     };
-  } catch (error) {
+  } catch {
     return null;
   }
 }
