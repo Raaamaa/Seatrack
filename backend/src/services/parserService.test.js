@@ -1,6 +1,22 @@
 const { parseSeaBankEmail, detectTransactionType, parseAmount, parseDate, parseMerchant, autoAssignCategory } = require('./parsers/seabankParser');
 const { parseBcaEmail } = require('./parsers/bcaParser');
 const { parseEmail } = require('./parserService');
+const { sanitizeFormulaInput } = require('./sheetsService');
+
+describe('Sanitize Formula Input', () => {
+  test('prepends single quote to inputs starting with formula special characters', () => {
+    expect(sanitizeFormulaInput('=SUM(1,2)')).toBe("'=SUM(1,2)");
+    expect(sanitizeFormulaInput('+12345')).toBe("'+12345");
+    expect(sanitizeFormulaInput('-12345')).toBe("'-12345");
+    expect(sanitizeFormulaInput('@cmd')).toBe("'@cmd");
+  });
+
+  test('does not alter normal string or number inputs', () => {
+    expect(sanitizeFormulaInput('Toko Baju')).toBe('Toko Baju');
+    expect(sanitizeFormulaInput('Indomaret')).toBe('Indomaret');
+    expect(sanitizeFormulaInput(125000)).toBe(125000);
+  });
+});
 
 describe('Parser Service Utils', () => {
   test('detectTransactionType detects correct types', () => {

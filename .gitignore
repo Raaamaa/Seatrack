@@ -1,0 +1,5 @@
+.agents/
+credentials.json
+backend/credentials/
+*.env
+*.log

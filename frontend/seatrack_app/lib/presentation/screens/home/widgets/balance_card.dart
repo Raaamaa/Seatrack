@@ -43,7 +43,7 @@ class BalanceCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1E3C72).withOpacity(0.3),
+            color: const Color(0xFF1E3C72).withValues(alpha: 0.3),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -52,19 +52,17 @@ class BalanceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Title & Sync / Bank filter
           Padding(
             padding: const EdgeInsets.only(left: 20, right: 12, top: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Bank Filter Dropdown
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
@@ -87,7 +85,6 @@ class BalanceCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Sync Button
                 IconButton(
                   onPressed: isSyncing ? null : onSync,
                   icon: isSyncing
@@ -105,7 +102,6 @@ class BalanceCard extends StatelessWidget {
               ],
             ),
           ),
-          // Net Balance
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Column(
@@ -114,7 +110,7 @@ class BalanceCard extends StatelessWidget {
                 Text(
                   'Saldo Bersih',
                   style: AppTextStyles.bodySmall.copyWith(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -129,25 +125,22 @@ class BalanceCard extends StatelessWidget {
               ],
             ),
           ),
-          // Separator Line
           Container(
             height: 1,
-            color: Colors.white.withOpacity(0.15),
+            color: Colors.white.withValues(alpha: 0.15),
             margin: const EdgeInsets.symmetric(horizontal: 20),
           ),
-          // Income & Expense Breakdown
           Padding(
             padding: const EdgeInsets.all(20),
             child: Row(
               children: [
-                // Income
                 Expanded(
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -164,21 +157,19 @@ class BalanceCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                // Divider
                 Container(
                   width: 1,
                   height: 36,
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   margin: const EdgeInsets.symmetric(horizontal: 10),
                 ),
-                // Expense
                 Expanded(
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -222,7 +213,7 @@ class CrossFadePayload extends StatelessWidget {
         Text(
           title,
           style: AppTextStyles.bodySmall.copyWith(
-            color: Colors.white.withOpacity(0.7),
+            color: Colors.white.withValues(alpha: 0.7),
             fontSize: 11,
           ),
         ),

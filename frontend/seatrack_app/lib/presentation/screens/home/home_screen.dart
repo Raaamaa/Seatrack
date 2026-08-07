@@ -51,22 +51,26 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isSyncing = true);
     try {
       await Provider.of<TransactionProvider>(context, listen: false).syncEmails();
-      // Reload summary too
+      if (!mounted) return;
       final now = DateTime.now();
       await Provider.of<DashboardProvider>(context, listen: false).fetchSummary(
         month: now.month,
         year: now.year,
         bank: _activeBank,
       );
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sinkronisasi email berhasil!')),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal sinkronisasi: ${e.toString()}')),
       );
     } finally {
-      setState(() => _isSyncing = false);
+      if (mounted) {
+        setState(() => _isSyncing = false);
+      }
     }
   }
 
@@ -99,7 +103,6 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Greeting and Greeting subtitle
                 Text(
                   'Halo, Pengguna!',
                   style: AppTextStyles.heading1,
@@ -126,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: const CircularProgressIndicator(color: AppColors.primary),
                       );
                     }
-                    
+
                     final summary = dashProv.summary;
                     final totalIncome = summary?['totalIncome'] ?? 0;
                     final totalExpense = summary?['totalExpense'] ?? 0;
@@ -148,21 +151,48 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Recent Transactions List
                 Consumer<TransactionProvider>(
                   builder: (context, txProv, child) {
-                    if (txProv.isLoading) {
+                    if (txProv.isLoading && txProv.transactions.isEmpty) {
                       return const LoadingShimmer(count: 3);
                     }
 
-                    if (txProv.error != null) {
+                    if (txProv.error != null && txProv.transactions.isEmpty) {
                       return Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppColors.expense.withOpacity(0.05),
+                          color: Color.fromRGBO(
+                            AppColors.expense.r.toInt(),
+                            AppColors.expense.g.toInt(),
+                            AppColors.expense.b.toInt(),
+                            0.05,
+                          ),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.expense.withOpacity(0.15)),
+                          border: Border.all(
+                            color: Color.fromRGBO(
+                              AppColors.expense.r.toInt(),
+                              AppColors.expense.g.toInt(),
+                              AppColors.expense.b.toInt(),
+                              0.15,
+                            ),
+                          ),
                         ),
-                        child: Text(
-                          'Gagal mengambil transaksi: ${txProv.error}',
-                          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.expense),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Gagal mengambil transaksi: ${txProv.error}',
+                              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.expense),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              onPressed: _loadData,
+                              icon: const Icon(Icons.refresh, size: 16),
+                              label: const Text('Coba Lagi'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.expense,
+                                side: const BorderSide(color: AppColors.expense),
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     }

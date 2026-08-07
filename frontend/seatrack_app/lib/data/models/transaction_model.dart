@@ -29,18 +29,32 @@ class TransactionModel {
   bool get isIncome => type == 'Transfer Masuk' || type == 'Pemasukan';
 
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
+    DateTime parsedDate;
+    if (json['date'] != null) {
+      parsedDate = DateTime.tryParse(json['date'].toString()) ?? DateTime.now();
+    } else {
+      parsedDate = DateTime.now();
+    }
+
+    int parsedAmount = 0;
+    if (json['amount'] is num) {
+      parsedAmount = (json['amount'] as num).toInt();
+    } else if (json['amount'] is String) {
+      parsedAmount = int.tryParse(json['amount'].toString()) ?? 0;
+    }
+
     return TransactionModel(
-      id: json['id'] ?? '',
-      emailId: json['emailId'] ?? '',
-      referenceId: json['referenceId'] ?? '',
-      date: DateTime.parse(json['date']),
-      type: json['type'] ?? '',
-      amount: json['amount'] ?? 0,
-      merchant: json['merchant'] ?? '',
-      category: json['category'] ?? 'Lainnya',
-      notes: json['notes'] ?? '',
-      source: json['source'] ?? 'auto',
-      bank: json['bank'] ?? 'Unknown',
+      id: json['id']?.toString() ?? '',
+      emailId: json['emailId']?.toString() ?? '',
+      referenceId: json['referenceId']?.toString() ?? '',
+      date: parsedDate,
+      type: json['type']?.toString() ?? '',
+      amount: parsedAmount,
+      merchant: json['merchant']?.toString() ?? '',
+      category: json['category']?.toString() ?? 'Lainnya',
+      notes: json['notes']?.toString() ?? '',
+      source: json['source']?.toString() ?? 'auto',
+      bank: json['bank']?.toString() ?? 'Unknown',
     );
   }
 

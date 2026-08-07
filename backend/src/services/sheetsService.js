@@ -12,12 +12,43 @@ const TRANSACTION_HEADERS = [
 ];
 
 /**
+ * Sanitasi string untuk mencegah Google Sheets Formula Injection (=, +, -, @)
+ */
+function sanitizeFormulaInput(val) {
+  if (typeof val !== 'string') return val;
+  const trimmed = val.trim();
+  if (/^[=+\-@]/.test(trimmed)) {
+    return `'${val}`;
+  }
+  return val;
+}
+
+/**
+ * In-Memory Sequential Queue untuk operasi write ke Google Sheets.
+ * Mencegah race condition pergeseran baris saat multiple concurrent writes.
+ * Menggunakan try...finally agar request yang throw error tidak memblokir antrian berikutnya.
+ */
+let writeQueuePromise = Promise.resolve();
+
+function enqueueWrite(taskFn) {
+  const result = writeQueuePromise.then(async () => {
+    try {
+      return await taskFn();
+    } finally {
+      // Selalu selesaikan rantai antrian di block finally
+    }
+  });
+
+  writeQueuePromise = result.catch(() => {});
+  return result;
+}
+
+/**
  * Inisialisasi sheet jika belum ada header
  */
 async function initializeSheets(auth) {
   const sheets = google.sheets({ version: 'v4', auth });
   try {
-    // Ambil metadata spreadsheet untuk melihat daftar sheet/tab yang ada
     const spreadsheet = await sheets.spreadsheets.get({
       spreadsheetId: SPREADSHEET_ID,
     });
@@ -109,36 +140,39 @@ async function getProcessedEmailIds(auth) {
 }
 
 /**
- * Simpan array transaksi baru ke sheet
+ * Simpan array transaksi baru ke sheet (menggunakan Queue & Formula Sanitization)
  */
 async function saveTransactions(auth, transactions) {
-  if (!transactions.length) return;
-  const sheets = google.sheets({ version: 'v4', auth });
+  if (!transactions || !transactions.length) return;
 
-  const rows = transactions.map((t, i) => [
-    `TXN-${Date.now()}-${i}`,  // ID unik
-    t.emailId,
-    t.referenceId,
-    t.date,
-    t.type,
-    t.amount,
-    t.merchant,
-    t.category,
-    t.notes || '',
-    t.source,
-    new Date().toISOString(),
-    t.bank || 'Unknown'
-  ]);
+  return enqueueWrite(async () => {
+    const sheets = google.sheets({ version: 'v4', auth });
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAMES.TRANSACTIONS}!A:L`,
-    valueInputOption: 'RAW',
-    insertDataOption: 'INSERT_ROWS',
-    resource: { values: rows },
+    const rows = transactions.map((t, i) => [
+      `TXN-${Date.now()}-${i}`,
+      sanitizeFormulaInput(t.emailId || ''),
+      sanitizeFormulaInput(t.referenceId || ''),
+      sanitizeFormulaInput(t.date || ''),
+      sanitizeFormulaInput(t.type || ''),
+      typeof t.amount === 'number' ? t.amount : (parseInt(t.amount, 10) || 0),
+      sanitizeFormulaInput(t.merchant || ''),
+      sanitizeFormulaInput(t.category || ''),
+      sanitizeFormulaInput(t.notes || ''),
+      sanitizeFormulaInput(t.source || ''),
+      new Date().toISOString(),
+      sanitizeFormulaInput(t.bank || 'Unknown')
+    ]);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAMES.TRANSACTIONS}!A:L`,
+      valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
+      resource: { values: rows },
+    });
+
+    console.log(`[Sheets] ${rows.length} transaksi berhasil disimpan.`);
   });
-
-  console.log(`[Sheets] ${rows.length} transaksi berhasil disimpan.`);
 }
 
 /**
@@ -154,17 +188,17 @@ async function getTransactions(auth, filters = {}) {
 
   const rows = res.data.values || [];
   let transactions = rows.map(row => ({
-    id: row[0],
-    emailId: row[1],
-    referenceId: row[2],
-    date: row[3],
-    type: row[4],
+    id: row[0] || '',
+    emailId: row[1] || '',
+    referenceId: row[2] || '',
+    date: row[3] || new Date().toISOString(),
+    type: row[4] || '',
     amount: parseInt(row[5], 10) || 0,
-    merchant: row[6],
-    category: row[7],
+    merchant: row[6] || '',
+    category: row[7] || 'Lainnya',
     notes: row[8] || '',
-    source: row[9],
-    createdAt: row[10],
+    source: row[9] || 'auto',
+    createdAt: row[10] || new Date().toISOString(),
     bank: row[11] || 'Unknown'
   }));
 
@@ -172,7 +206,7 @@ async function getTransactions(auth, filters = {}) {
   if (filters.month && filters.year) {
     transactions = transactions.filter(t => {
       const d = new Date(t.date);
-      return d.getMonth() + 1 === parseInt(filters.month) && d.getFullYear() === parseInt(filters.year);
+      return !isNaN(d) && d.getMonth() + 1 === parseInt(filters.month) && d.getFullYear() === parseInt(filters.year);
     });
   }
   if (filters.category) {
@@ -182,32 +216,36 @@ async function getTransactions(auth, filters = {}) {
     transactions = transactions.filter(t => t.type === filters.type);
   }
   if (filters.bank) {
-    transactions = transactions.filter(t => t.bank.toLowerCase() === filters.bank.toLowerCase());
+    transactions = transactions.filter(t => t.bank && t.bank.toLowerCase() === filters.bank.toLowerCase());
   }
 
   return transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
 /**
- * Update kategori sebuah transaksi berdasarkan ID
+ * Update kategori sebuah transaksi berdasarkan ID (menggunakan Queue & Formula Sanitization)
  */
 async function updateTransactionCategory(auth, transactionId, newCategory) {
-  const sheets = google.sheets({ version: 'v4', auth });
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAMES.TRANSACTIONS}!A:A`,
-  });
+  return enqueueWrite(async () => {
+    const sheets = google.sheets({ version: 'v4', auth });
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAMES.TRANSACTIONS}!A:A`,
+    });
 
-  const ids = (res.data.values || []).flat();
-  const rowIndex = ids.indexOf(transactionId);
-  if (rowIndex === -1) throw new Error('Transaksi tidak ditemukan');
+    const ids = (res.data.values || []).flat();
+    const rowIndex = ids.indexOf(transactionId);
+    if (rowIndex === -1) throw new Error('Transaksi tidak ditemukan');
 
-  const rowNumber = rowIndex + 1; // 1-based, +1 karena header di row 1
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAMES.TRANSACTIONS}!H${rowNumber}`,
-    valueInputOption: 'RAW',
-    resource: { values: [[newCategory]] },
+    const rowNumber = rowIndex + 1; // 1-based index
+    const sanitizedCat = sanitizeFormulaInput(newCategory || '');
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAMES.TRANSACTIONS}!H${rowNumber}`,
+      valueInputOption: 'RAW',
+      resource: { values: [[sanitizedCat]] },
+    });
   });
 }
 
@@ -216,5 +254,6 @@ module.exports = {
   getProcessedEmailIds, 
   saveTransactions, 
   getTransactions, 
-  updateTransactionCategory 
+  updateTransactionCategory,
+  sanitizeFormulaInput 
 };

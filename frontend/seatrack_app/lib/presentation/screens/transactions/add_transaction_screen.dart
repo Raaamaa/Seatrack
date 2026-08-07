@@ -42,6 +42,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   final List<String> _banks = ['Manual', 'SeaBank', 'BCA', 'Jago'];
 
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _merchantController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -76,23 +84,29 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       await Provider.of<TransactionProvider>(context, listen: false)
           .addManualTransaction(body);
 
-      // Reload summary too
+      if (!mounted) return;
+
       final now = DateTime.now();
       await Provider.of<DashboardProvider>(context, listen: false).fetchSummary(
         month: now.month,
         year: now.year,
       );
 
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Transaksi berhasil disimpan!')),
       );
       Navigator.pop(context);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal menyimpan transaksi: $e')),
       );
     } finally {
-      setState(() => _isSaving = false);
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
@@ -113,7 +127,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Form field: Amount
                 Text('Nominal (Rp)', style: AppTextStyles.labelMedium),
                 const SizedBox(height: 6),
                 TextFormField(
@@ -137,7 +150,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Form field: Merchant
                 Text('Merchant / Nama Toko', style: AppTextStyles.labelMedium),
                 const SizedBox(height: 6),
                 TextFormField(
@@ -158,7 +170,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Row of Type & Bank
                 Row(
                   children: [
                     Expanded(
@@ -182,7 +193,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                   if (val != null) {
                                     setState(() {
                                       _selectedType = val;
-                                      // Auto adjust category for income
                                       if (val == 'Pemasukan' || val == 'Transfer Masuk') {
                                         _selectedCategory = 'Tabungan & Investasi';
                                       }
@@ -234,7 +244,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Form field: Category
                 Text('Kategori', style: AppTextStyles.labelMedium),
                 const SizedBox(height: 6),
                 Container(
@@ -259,7 +268,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Form field: Date
                 Text('Tanggal', style: AppTextStyles.labelMedium),
                 const SizedBox(height: 6),
                 InkWell(
@@ -285,7 +293,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Form field: Notes
                 Text('Catatan', style: AppTextStyles.labelMedium),
                 const SizedBox(height: 6),
                 TextFormField(
@@ -303,7 +310,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Submit Button
                 SizedBox(
                   width: double.infinity,
                   height: 50,

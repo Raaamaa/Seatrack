@@ -110,7 +110,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           final totalIncome = summary['totalIncome'] ?? 0;
           final totalExpense = summary['totalExpense'] ?? 0;
-          final categoryMap = Map<String, dynamic>.from(summary['categoryBreakdown'] ?? {});
+          final categoryMap =
+              Map<String, dynamic>.from(summary['categoryBreakdown'] ?? {});
           final weeklyList = List<dynamic>.from(summary['weeklyExpense'] ?? []);
 
           return SingleChildScrollView(
@@ -122,7 +123,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   // Filters Section (Bank, Month, Year)
                   Card(
                     elevation: 0,
-                    color: AppColors.surface.withOpacity(0.5),
+                    color: AppColors.surface.withValues(alpha: 0.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                       side: BorderSide(color: AppColors.divider),
@@ -136,9 +137,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Filter Rekening/Bank', style: AppTextStyles.labelMedium),
+                              Text('Filter Rekening/Bank',
+                                  style: AppTextStyles.labelMedium),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: AppColors.surface,
                                   borderRadius: BorderRadius.circular(10),
@@ -151,7 +154,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       fontWeight: FontWeight.bold,
                                       color: AppColors.textPrimary,
                                     ),
-                                    icon: const Icon(Icons.arrow_drop_down, size: 16),
+                                    icon: const Icon(Icons.arrow_drop_down,
+                                        size: 16),
                                     onChanged: (val) {
                                       if (val != null) {
                                         setState(() => _selectedBank = val);
@@ -159,7 +163,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       }
                                     },
                                     items: _banks
-                                        .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+                                        .map((b) => DropdownMenuItem(
+                                            value: b, child: Text(b)))
                                         .toList(),
                                   ),
                                 ),
@@ -175,34 +180,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Bulan', style: AppTextStyles.labelMedium),
+                                    Text('Bulan',
+                                        style: AppTextStyles.labelMedium),
                                     const SizedBox(height: 6),
                                     Container(
                                       width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 4),
                                       decoration: BoxDecoration(
                                         color: AppColors.surface,
                                         borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: AppColors.divider),
+                                        border: Border.all(
+                                            color: AppColors.divider),
                                       ),
                                       child: DropdownButtonHideUnderline(
                                         child: DropdownButton<int>(
                                           value: _selectedMonth,
-                                          style: AppTextStyles.bodySmall.copyWith(
+                                          style:
+                                              AppTextStyles.bodySmall.copyWith(
                                             fontWeight: FontWeight.bold,
                                             color: AppColors.textPrimary,
                                           ),
-                                          icon: const Icon(Icons.arrow_drop_down, size: 16),
+                                          icon: const Icon(
+                                              Icons.arrow_drop_down,
+                                              size: 16),
                                           onChanged: (val) {
                                             if (val != null) {
-                                              setState(() => _selectedMonth = val);
+                                              setState(
+                                                  () => _selectedMonth = val);
                                               _loadDashboardData();
                                             }
                                           },
                                           items: _months
                                               .map((m) => DropdownMenuItem<int>(
                                                     value: m['value'] as int,
-                                                    child: Text(m['name'] as String),
+                                                    child: Text(
+                                                        m['name'] as String),
                                                   ))
                                               .toList(),
                                         ),
@@ -217,27 +230,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Tahun', style: AppTextStyles.labelMedium),
+                                    Text('Tahun',
+                                        style: AppTextStyles.labelMedium),
                                     const SizedBox(height: 6),
                                     Container(
                                       width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 4),
                                       decoration: BoxDecoration(
                                         color: AppColors.surface,
                                         borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: AppColors.divider),
+                                        border: Border.all(
+                                            color: AppColors.divider),
                                       ),
                                       child: DropdownButtonHideUnderline(
                                         child: DropdownButton<int>(
                                           value: _selectedYear,
-                                          style: AppTextStyles.bodySmall.copyWith(
+                                          style:
+                                              AppTextStyles.bodySmall.copyWith(
                                             fontWeight: FontWeight.bold,
                                             color: AppColors.textPrimary,
                                           ),
-                                          icon: const Icon(Icons.arrow_drop_down, size: 16),
+                                          icon: const Icon(
+                                              Icons.arrow_drop_down,
+                                              size: 16),
                                           onChanged: (val) {
                                             if (val != null) {
-                                              setState(() => _selectedYear = val);
+                                              setState(
+                                                  () => _selectedYear = val);
                                               _loadDashboardData();
                                             }
                                           },
@@ -298,8 +318,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         barTouchData: BarTouchData(enabled: true),
                         titlesData: FlTitlesData(
                           show: true,
-                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          topTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false)),
                           bottomTitles: AxisTitles(
                             sideTitles: SideTitles(
                               showTitles: true,
@@ -310,7 +332,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     padding: const EdgeInsets.only(top: 8.0),
                                     child: Text(
                                       weeklyList[index]['week'] ?? '',
-                                      style: AppTextStyles.bodySmall.copyWith(fontSize: 10),
+                                      style: AppTextStyles.bodySmall
+                                          .copyWith(fontSize: 10),
                                     ),
                                   );
                                 }
@@ -355,7 +378,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       alignment: Alignment.center,
                       child: Text(
                         'Tidak ada pengeluaran untuk ditampilkan.',
-                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+                        style: AppTextStyles.bodyMedium
+                            .copyWith(color: AppColors.textSecondary),
                       ),
                     )
                   else
@@ -379,7 +403,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   return PieChartSectionData(
                                     color: color,
                                     value: amount.toDouble(),
-                                    title: '${(amount / totalExpense * 100).toStringAsFixed(0)}%',
+                                    title:
+                                        '${(amount / totalExpense * 100).toStringAsFixed(0)}%',
                                     radius: 50,
                                     titleStyle: const TextStyle(
                                       fontSize: 12,
@@ -399,21 +424,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               final amount = entry.value as num;
                               final color = _getCategoryColor(cat);
                               return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 4.0),
                                 child: Row(
                                   children: [
                                     Container(
                                       width: 12,
                                       height: 12,
-                                      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                                      decoration: BoxDecoration(
+                                          color: color, shape: BoxShape.circle),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
-                                      child: Text(cat, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textPrimary)),
+                                      child: Text(cat,
+                                          style: AppTextStyles.bodySmall
+                                              .copyWith(
+                                                  color:
+                                                      AppColors.textPrimary)),
                                     ),
                                     Text(
                                       currencyFormat.format(amount),
-                                      style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.bold),
+                                      style: AppTextStyles.bodySmall.copyWith(
+                                          fontWeight: FontWeight.bold),
                                     ),
                                   ],
                                 ),
@@ -456,7 +488,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.01),
+              color: Colors.black.withValues(alpha: 0.01),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -470,7 +502,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(icon, color: color, size: 14),
@@ -482,7 +514,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 12),
             Text(
               amount,
-              style: AppTextStyles.heading2.copyWith(fontSize: 16, color: color),
+              style:
+                  AppTextStyles.heading2.copyWith(fontSize: 16, color: color),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

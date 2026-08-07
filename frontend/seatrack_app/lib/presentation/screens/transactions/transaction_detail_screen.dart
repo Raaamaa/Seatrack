@@ -82,21 +82,24 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       await Provider.of<TransactionProvider>(context, listen: false)
           .updateCategory(widget.transaction.id, newCategory);
       
-      // Reload summary too
+      if (!mounted) return;
+
       final now = DateTime.now();
       await Provider.of<DashboardProvider>(context, listen: false).fetchSummary(
         month: now.month,
         year: now.year,
       );
 
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Kategori berhasil diperbarui.')),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal memperbarui kategori: $e')),
       );
-      // Revert in UI if failed
       setState(() => _selectedCategory = widget.transaction.category);
     }
   }
@@ -122,7 +125,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              // Header card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
@@ -131,7 +133,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.01),
+                      color: Colors.black.withValues(alpha: 0.01),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -143,7 +145,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       width: 54,
                       height: 54,
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
+                        color: color.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(_getTypeIcon(), color: color, size: 28),
@@ -160,7 +162,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       style: AppTextStyles.amountLarge.copyWith(color: color, fontSize: 32),
                     ),
                     const SizedBox(height: 8),
-                    // Bank badge
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
@@ -180,7 +181,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Details Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
@@ -195,8 +195,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     _buildDetailRow('Sumber Transaksi', widget.transaction.source == 'auto' ? 'Otomatis (Email)' : 'Manual Input'),
                     _buildDetailRow('ID Transaksi / Ref', widget.transaction.referenceId),
                     const Divider(color: AppColors.divider),
-                    
-                    // Category dropdown row
+
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
                       child: Row(

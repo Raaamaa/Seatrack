@@ -44,7 +44,6 @@ class RecentTransactionsList extends StatelessWidget {
       );
     }
 
-    // Limit to top 5 recent transactions on home screen
     final recent = transactions.take(5).toList();
 
     return Container(
@@ -53,7 +52,7 @@ class RecentTransactionsList extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
