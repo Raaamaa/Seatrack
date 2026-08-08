@@ -2,6 +2,44 @@ const { parseSeaBankEmail, detectTransactionType, parseAmount, parseDate, parseM
 const { parseBcaEmail } = require('./parsers/bcaParser');
 const { parseEmail } = require('./parserService');
 const { sanitizeFormulaInput } = require('./sheetsService');
+const { withRetry } = require('../utils/retryHelper');
+
+describe('Retry Helper (withRetry)', () => {
+  test('langsung sukses jika fungsi tidak melempar error', async () => {
+    const fn = jest.fn().mockResolvedValue('OK');
+    const res = await withRetry(fn, 3, 10);
+    expect(res).toBe('OK');
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  test('melakukan retry jika error 429 dan berhasil pada percobaaan berikutnya', async () => {
+    let count = 0;
+    const fn = jest.fn().mockImplementation(async () => {
+      count++;
+      if (count === 1) {
+        const err = new Error('Rate limit');
+        err.code = 429;
+        throw err;
+      }
+      return 'SUCCESS';
+    });
+
+    const res = await withRetry(fn, 3, 10);
+    expect(res).toBe('SUCCESS');
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  test('melempar error jika percobaan melebihi maxRetries', async () => {
+    const fn = jest.fn().mockImplementation(async () => {
+      const err = new Error('Server Error');
+      err.code = 500;
+      throw err;
+    });
+
+    await expect(withRetry(fn, 2, 10)).rejects.toThrow('Server Error');
+    expect(fn).toHaveBeenCalledTimes(3); // Initial attempt + 2 retries
+  });
+});
 
 describe('Sanitize Formula Input', () => {
   test('prepends single quote to inputs starting with formula special characters', () => {

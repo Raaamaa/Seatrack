@@ -27,6 +27,7 @@ class TransactionModel {
   });
 
   bool get isIncome => type == 'Transfer Masuk' || type == 'Pemasukan';
+  bool get isPendingSync => source == 'pending_sync' || id.startsWith('pending-');
 
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
     DateTime parsedDate;

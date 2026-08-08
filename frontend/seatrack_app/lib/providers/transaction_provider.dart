@@ -1,7 +1,9 @@
 // lib/providers/transaction_provider.dart
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../data/models/transaction_model.dart';
 import '../core/network/api_client.dart';
 
@@ -9,6 +11,9 @@ class TransactionProvider extends ChangeNotifier {
   List<TransactionModel> _transactions = [];
   bool _isLoading = false;
   String? _error;
+  bool _isSyncingQueue = false;
+
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   String _searchQuery = '';
   String _selectedCategory = 'Semua';
@@ -18,6 +23,7 @@ class TransactionProvider extends ChangeNotifier {
   List<TransactionModel> get transactions => _transactions;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  bool get isSyncingQueue => _isSyncingQueue;
 
   String get searchQuery => _searchQuery;
   String get selectedCategory => _selectedCategory;
@@ -61,6 +67,17 @@ class TransactionProvider extends ChangeNotifier {
 
   TransactionProvider() {
     _loadFromCache();
+    _initConnectivityListener();
+    syncPendingQueue();
+  }
+
+  void _initConnectivityListener() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) {
+      final hasConnection = results.any((r) => r != ConnectivityResult.none);
+      if (hasConnection) {
+        syncPendingQueue();
+      }
+    });
   }
 
   void _loadFromCache() {
@@ -91,6 +108,9 @@ class TransactionProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    // Trigger sync pending queue jika ada koneksi
+    syncPendingQueue();
+
     try {
       final now = DateTime.now();
       final queryParams = {
@@ -105,7 +125,10 @@ class TransactionProvider extends ChangeNotifier {
       final List rawList = response['data'] as List;
       _transactions = rawList.map((json) => TransactionModel.fromJson(json)).toList();
 
-      // Server-Wins: Update local Hive cache with clean server data
+      // Merge local pending transactions if any exist in Hive queue
+      _mergePendingFromQueue();
+
+      // Server-Wins: Update local Hive cache with merged data
       _saveToCache(_transactions);
     } catch (e) {
       _error = e.toString().replaceAll('Exception: ', '');
@@ -119,9 +142,123 @@ class TransactionProvider extends ChangeNotifier {
     }
   }
 
+  void _mergePendingFromQueue() {
+    try {
+      final queueBox = Hive.box<String>('pending_transactions_queue');
+      for (var key in queueBox.keys) {
+        final rawStr = queueBox.get(key);
+        if (rawStr != null) {
+          final map = jsonDecode(rawStr) as Map<String, dynamic>;
+          final payload = map['data'] as Map<String, dynamic>? ?? {};
+          final tempId = map['tempId']?.toString() ?? key.toString();
+          final clientRefId = map['clientRefId']?.toString() ?? '';
+
+          final existsInList = _transactions.any((t) => t.id == tempId || t.referenceId == clientRefId);
+          if (!existsInList) {
+            final pendingTx = TransactionModel(
+              id: tempId,
+              emailId: 'manual-$clientRefId',
+              referenceId: clientRefId,
+              date: DateTime.tryParse(payload['date']?.toString() ?? '') ?? DateTime.now(),
+              type: payload['type']?.toString() ?? 'Pengeluaran',
+              amount: int.tryParse(payload['amount']?.toString() ?? '0') ?? 0,
+              merchant: payload['merchant']?.toString() ?? 'Manual Input',
+              category: payload['category']?.toString() ?? 'Lainnya',
+              notes: payload['notes']?.toString() ?? '',
+              source: 'pending_sync',
+              bank: payload['bank']?.toString() ?? 'Manual',
+            );
+            _transactions.insert(0, pendingTx);
+          }
+        }
+      }
+    } catch (_) {
+      // Ignore merge errors
+    }
+  }
+
   Future<void> addManualTransaction(Map<String, dynamic> data) async {
-    await ApiClient.post('/transactions', data);
-    await fetchTransactions();
+    final clientRefId = 'MAN-OFFLINE-${DateTime.now().millisecondsSinceEpoch}';
+    final payload = Map<String, dynamic>.from(data);
+    payload['clientRefId'] = clientRefId;
+
+    try {
+      await ApiClient.post('/transactions', payload);
+      await fetchTransactions();
+    } catch (e) {
+      // Offline fallback: simpan ke pending_transactions_queue
+      final tempId = 'pending-${DateTime.now().millisecondsSinceEpoch}';
+      final queueItem = {
+        'tempId': tempId,
+        'clientRefId': clientRefId,
+        'data': payload,
+        'status': 'pending',
+        'createdAt': DateTime.now().toIso8601String(),
+        'retryCount': 0,
+        'lastError': e.toString(),
+      };
+
+      try {
+        final queueBox = Hive.box<String>('pending_transactions_queue');
+        await queueBox.put(tempId, jsonEncode(queueItem));
+
+        final pendingTx = TransactionModel(
+          id: tempId,
+          emailId: 'manual-$clientRefId',
+          referenceId: clientRefId,
+          date: DateTime.tryParse(payload['date']?.toString() ?? '') ?? DateTime.now(),
+          type: payload['type']?.toString() ?? 'Pengeluaran',
+          amount: int.tryParse(payload['amount']?.toString() ?? '0') ?? 0,
+          merchant: payload['merchant']?.toString() ?? 'Manual Input',
+          category: payload['category']?.toString() ?? 'Lainnya',
+          notes: payload['notes']?.toString() ?? '',
+          source: 'pending_sync',
+          bank: payload['bank']?.toString() ?? 'Manual',
+        );
+
+        _transactions.insert(0, pendingTx);
+        _saveToCache(_transactions);
+        notifyListeners();
+      } catch (_) {
+        // Fallback write error
+      }
+    }
+  }
+
+  Future<void> syncPendingQueue() async {
+    if (_isSyncingQueue) return;
+    _isSyncingQueue = true;
+
+    try {
+      final queueBox = Hive.box<String>('pending_transactions_queue');
+      final keys = List.from(queueBox.keys);
+
+      for (var key in keys) {
+        final rawStr = queueBox.get(key);
+        if (rawStr == null) continue;
+
+        final item = jsonDecode(rawStr) as Map<String, dynamic>;
+        final payload = item['data'] as Map<String, dynamic>;
+
+        try {
+          await ApiClient.post('/transactions', payload);
+          await queueBox.delete(key);
+        } catch (e) {
+          int retries = (item['retryCount'] as int? ?? 0) + 1;
+          item['retryCount'] = retries;
+          item['lastError'] = e.toString();
+          if (retries >= 5) {
+            item['status'] = 'failed';
+          }
+          await queueBox.put(key, jsonEncode(item));
+        }
+      }
+    } catch (_) {
+      // Ignore queue iteration errors
+    } finally {
+      _isSyncingQueue = false;
+      notifyListeners();
+    }
   }
 
   Future<void> updateCategory(String transactionId, String newCategory) async {
@@ -150,5 +287,11 @@ class TransactionProvider extends ChangeNotifier {
   Future<void> syncEmails() async {
     await ApiClient.post('/transactions/sync', {});
     await fetchTransactions();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 }

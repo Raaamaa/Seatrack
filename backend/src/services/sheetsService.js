@@ -1,6 +1,7 @@
 // backend/src/services/sheetsService.js
 const { google } = require('googleapis');
 const { SHEET_NAMES } = require('../config/constants');
+const { withRetry } = require('../utils/retryHelper');
 require('dotenv').config();
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
@@ -49,55 +50,55 @@ function enqueueWrite(taskFn) {
 async function initializeSheets(auth) {
   const sheets = google.sheets({ version: 'v4', auth });
   try {
-    const spreadsheet = await sheets.spreadsheets.get({
+    const spreadsheet = await withRetry(() => sheets.spreadsheets.get({
       spreadsheetId: SPREADSHEET_ID,
-    });
+    }));
     const sheetTitles = spreadsheet.data.sheets.map(s => s.properties.title);
 
     // 1. Inisialisasi sheet Transactions jika belum ada
     if (!sheetTitles.includes(SHEET_NAMES.TRANSACTIONS)) {
-      await sheets.spreadsheets.batchUpdate({
+      await withRetry(() => sheets.spreadsheets.batchUpdate({
         spreadsheetId: SPREADSHEET_ID,
         resource: {
           requests: [{ addSheet: { properties: { title: SHEET_NAMES.TRANSACTIONS } } }]
         }
-      });
+      }));
       console.log(`[Sheets] Sheet '${SHEET_NAMES.TRANSACTIONS}' berhasil dibuat.`);
       sheetTitles.push(SHEET_NAMES.TRANSACTIONS);
     }
 
     // Inisialisasi header Transactions jika belum ada
-    const resTx = await sheets.spreadsheets.values.get({
+    const resTx = await withRetry(() => sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAMES.TRANSACTIONS}!A1:L1`,
-    });
+    }));
     if (!resTx.data.values || resTx.data.values.length === 0) {
-      await sheets.spreadsheets.values.update({
+      await withRetry(() => sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
         range: `${SHEET_NAMES.TRANSACTIONS}!A1`,
         valueInputOption: 'RAW',
         resource: { values: [TRANSACTION_HEADERS] },
-      });
+      }));
       console.log('[Sheets] Header kolom Transactions berhasil dibuat.');
     }
 
     // 2. Inisialisasi sheet Monthly Summary jika belum ada
     if (!sheetTitles.includes(SHEET_NAMES.SUMMARY)) {
-      await sheets.spreadsheets.batchUpdate({
+      await withRetry(() => sheets.spreadsheets.batchUpdate({
         spreadsheetId: SPREADSHEET_ID,
         resource: {
           requests: [{ addSheet: { properties: { title: SHEET_NAMES.SUMMARY } } }]
         }
-      });
+      }));
       console.log(`[Sheets] Sheet '${SHEET_NAMES.SUMMARY}' berhasil dibuat.`);
       sheetTitles.push(SHEET_NAMES.SUMMARY);
     }
 
     // Selalu pastikan header & formula ada di Monthly Summary jika A1 kosong
-    const resSummary = await sheets.spreadsheets.values.get({
+    const resSummary = await withRetry(() => sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAMES.SUMMARY}!A1:A2`,
-    });
+    }));
     if (!resSummary.data.values || resSummary.data.values.length === 0) {
       const summaryValues = [
         ['Bulan', 'Total Pemasukan', 'Total Pengeluaran', 'Arus Bersih'],
@@ -109,12 +110,12 @@ async function initializeSheets(auth) {
         ]
       ];
 
-      await sheets.spreadsheets.values.update({
+      await withRetry(() => sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
         range: `${SHEET_NAMES.SUMMARY}!A1`,
         valueInputOption: 'USER_ENTERED',
         resource: { values: summaryValues },
-      });
+      }));
       console.log('[Sheets] Formulas dan header Monthly Summary berhasil dibuat/diperbarui.');
     }
   } catch (error) {
@@ -128,10 +129,10 @@ async function initializeSheets(auth) {
 async function getProcessedEmailIds(auth) {
   const sheets = google.sheets({ version: 'v4', auth });
   try {
-    const res = await sheets.spreadsheets.values.get({
+    const res = await withRetry(() => sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAMES.TRANSACTIONS}!B2:B`,
-    });
+    }));
     return (res.data.values || []).flat();
   } catch (error) {
     console.error('[Sheets] Error ambil processed email IDs:', error.message);
@@ -140,7 +141,7 @@ async function getProcessedEmailIds(auth) {
 }
 
 /**
- * Simpan array transaksi baru ke sheet (menggunakan Queue & Formula Sanitization)
+ * Simpan array transaksi baru ke sheet (menggunakan Queue, Retry & Formula Sanitization)
  */
 async function saveTransactions(auth, transactions) {
   if (!transactions || !transactions.length) return;
@@ -148,7 +149,27 @@ async function saveTransactions(auth, transactions) {
   return enqueueWrite(async () => {
     const sheets = google.sheets({ version: 'v4', auth });
 
-    const rows = transactions.map((t, i) => [
+    // Deduplikasi berdasarkan Email ID (Kolom B) & Reference ID (Kolom C)
+    const existingRes = await withRetry(() => sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAMES.TRANSACTIONS}!B2:C`,
+    }));
+    const existingRows = existingRes.data.values || [];
+    const existingEmailIds = new Set(existingRows.map(r => r[0]).filter(Boolean));
+    const existingRefIds = new Set(existingRows.map(r => r[1]).filter(Boolean));
+
+    const newTransactions = transactions.filter(t => {
+      if (t.referenceId && existingRefIds.has(t.referenceId)) return false;
+      if (t.emailId && existingEmailIds.has(t.emailId)) return false;
+      return true;
+    });
+
+    if (!newTransactions.length) {
+      console.log('[Sheets] Transaksi sudah pernah disimpan (dilewati karena duplikat).');
+      return;
+    }
+
+    const rows = newTransactions.map((t, i) => [
       `TXN-${Date.now()}-${i}`,
       sanitizeFormulaInput(t.emailId || ''),
       sanitizeFormulaInput(t.referenceId || ''),
@@ -163,13 +184,13 @@ async function saveTransactions(auth, transactions) {
       sanitizeFormulaInput(t.bank || 'Unknown')
     ]);
 
-    await sheets.spreadsheets.values.append({
+    await withRetry(() => sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAMES.TRANSACTIONS}!A:L`,
       valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
       resource: { values: rows },
-    });
+    }));
 
     console.log(`[Sheets] ${rows.length} transaksi berhasil disimpan.`);
   });
@@ -181,10 +202,10 @@ async function saveTransactions(auth, transactions) {
  */
 async function getTransactions(auth, filters = {}) {
   const sheets = google.sheets({ version: 'v4', auth });
-  const res = await sheets.spreadsheets.values.get({
+  const res = await withRetry(() => sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: `${SHEET_NAMES.TRANSACTIONS}!A2:L`,
-  });
+  }));
 
   const rows = res.data.values || [];
   let transactions = rows.map(row => ({
@@ -223,15 +244,15 @@ async function getTransactions(auth, filters = {}) {
 }
 
 /**
- * Update kategori sebuah transaksi berdasarkan ID (menggunakan Queue & Formula Sanitization)
+ * Update kategori sebuah transaksi berdasarkan ID (menggunakan Queue, Retry & Formula Sanitization)
  */
 async function updateTransactionCategory(auth, transactionId, newCategory) {
   return enqueueWrite(async () => {
     const sheets = google.sheets({ version: 'v4', auth });
-    const res = await sheets.spreadsheets.values.get({
+    const res = await withRetry(() => sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAMES.TRANSACTIONS}!A:A`,
-    });
+    }));
 
     const ids = (res.data.values || []).flat();
     const rowIndex = ids.indexOf(transactionId);
@@ -240,12 +261,12 @@ async function updateTransactionCategory(auth, transactionId, newCategory) {
     const rowNumber = rowIndex + 1; // 1-based index
     const sanitizedCat = sanitizeFormulaInput(newCategory || '');
 
-    await sheets.spreadsheets.values.update({
+    await withRetry(() => sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAMES.TRANSACTIONS}!H${rowNumber}`,
       valueInputOption: 'RAW',
       resource: { values: [[sanitizedCat]] },
-    });
+    }));
   });
 }
 

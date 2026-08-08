@@ -20,14 +20,15 @@ router.get('/', async (req, res, next) => {
 // POST /api/transactions — tambah transaksi manual
 router.post('/', async (req, res, next) => {
   try {
-    const { amount, type, category, date, merchant, notes, bank } = req.body;
+    const { amount, type, category, date, merchant, notes, bank, clientRefId } = req.body;
     if (!amount || !type || !category || !date) {
       return res.status(400).json({ success: false, message: 'Field amount, type, category, dan date wajib diisi.' });
     }
     const auth = await getAuthClient();
+    const refId = clientRefId || `MAN-${Date.now()}`;
     const manualTransaction = {
-      emailId: `manual-${Date.now()}`,
-      referenceId: `MAN-${Date.now()}`,
+      emailId: `manual-${refId}`,
+      referenceId: refId,
       date: new Date(date).toISOString(),
       type,
       amount: parseInt(amount, 10),

@@ -19,16 +19,35 @@ class UnauthenticatedError extends Error {
   }
 }
 
-async function getAuthClient() {
+function getOAuth2Client() {
   if (!fs.existsSync(CREDENTIALS_PATH)) {
     const err = new Error(`Google API Credentials file not found at ${CREDENTIALS_PATH}. Please set up credentials file.`);
     err.statusCode = 500;
     throw err;
   }
-
   const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf-8'));
   const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
-  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+  return new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+}
+
+function generateAuthUrl() {
+  const oAuth2Client = getOAuth2Client();
+  return oAuth2Client.generateAuthUrl({ access_type: 'offline', scope: SCOPES, prompt: 'consent' });
+}
+
+async function handleOAuthCallback(code) {
+  const oAuth2Client = getOAuth2Client();
+  const { tokens } = await oAuth2Client.getToken(code);
+  const dir = path.dirname(TOKEN_PATH);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
+  return tokens;
+}
+
+async function getAuthClient() {
+  const oAuth2Client = getOAuth2Client();
 
   if (fs.existsSync(TOKEN_PATH)) {
     try {
@@ -51,10 +70,10 @@ async function getAuthClient() {
     }
   }
 
-  // Jika token.json tidak ditemukan, alih-alih hang di CLI, lempar 401 UnauthenticatedError
-  const authUrl = oAuth2Client.generateAuthUrl({ access_type: 'offline', scope: SCOPES });
+  // Jika token.json tidak ditemukan, lempar 401 UnauthenticatedError
+  const authUrl = generateAuthUrl();
   console.warn('\n⚠️ [Auth] Token tidak ditemukan. Buka URL ini untuk otorisasi:\n' + authUrl + '\n');
   throw new UnauthenticatedError(`Autentikasi Google API diperlukan. Buka URL otorisasi di server console: ${authUrl}`);
 }
 
-module.exports = { getAuthClient, UnauthenticatedError };
+module.exports = { getAuthClient, generateAuthUrl, handleOAuthCallback, UnauthenticatedError };
