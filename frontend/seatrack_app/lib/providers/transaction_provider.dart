@@ -225,9 +225,10 @@ class TransactionProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> syncPendingQueue() async {
+  Future<void> syncPendingQueue({void Function(int syncedCount)? onSyncSuccess}) async {
     if (_isSyncingQueue) return;
     _isSyncingQueue = true;
+    int syncedCount = 0;
 
     try {
       final queueBox = Hive.box<String>('pending_transactions_queue');
@@ -239,10 +240,35 @@ class TransactionProvider extends ChangeNotifier {
 
         final item = jsonDecode(rawStr) as Map<String, dynamic>;
         final payload = item['data'] as Map<String, dynamic>;
+        final tempId = item['tempId']?.toString() ?? key.toString();
+        final clientRefId = item['clientRefId']?.toString() ?? payload['clientRefId']?.toString() ?? '';
 
         try {
           await ApiClient.post('/transactions', payload);
           await queueBox.delete(key);
+
+          // Update state in-memory _transactions agar badge "Menunggu Sync" langsung hilang
+          final index = _transactions.indexWhere(
+            (t) => t.id == tempId || (clientRefId.isNotEmpty && t.referenceId == clientRefId),
+          );
+
+          if (index != -1) {
+            final oldTx = _transactions[index];
+            _transactions[index] = TransactionModel(
+              id: clientRefId.isNotEmpty ? clientRefId : (oldTx.referenceId.isNotEmpty ? oldTx.referenceId : tempId),
+              emailId: oldTx.emailId,
+              referenceId: clientRefId.isNotEmpty ? clientRefId : oldTx.referenceId,
+              date: oldTx.date,
+              type: oldTx.type,
+              amount: oldTx.amount,
+              merchant: oldTx.merchant,
+              category: oldTx.category,
+              notes: oldTx.notes,
+              source: 'manual',
+              bank: oldTx.bank,
+            );
+          }
+          syncedCount++;
         } catch (e) {
           int retries = (item['retryCount'] as int? ?? 0) + 1;
           item['retryCount'] = retries;
@@ -253,10 +279,17 @@ class TransactionProvider extends ChangeNotifier {
           await queueBox.put(key, jsonEncode(item));
         }
       }
+
+      if (syncedCount > 0) {
+        _saveToCache(_transactions);
+      }
     } catch (_) {
       // Ignore queue iteration errors
     } finally {
       _isSyncingQueue = false;
+      if (syncedCount > 0 && onSyncSuccess != null) {
+        onSyncSuccess(syncedCount);
+      }
       notifyListeners();
     }
   }

@@ -90,5 +90,42 @@ void main() {
       expect(filteredBank.length, equals(1));
       expect(filteredBank.first.merchant, equals('PT Gaji Utama'));
     });
+
+    test('Transaksi pending memiliki isPendingSync true, dan berubah menjadi false saat tersinkronisasi (tanpa id backend)', () {
+      final pendingTx = TransactionModel(
+        id: 'pending-100',
+        emailId: 'manual-MAN-OFFLINE-100',
+        referenceId: 'MAN-OFFLINE-100',
+        date: DateTime(2026, 8, 8),
+        type: 'Pengeluaran',
+        amount: 30000,
+        merchant: 'Warung Makan',
+        category: 'Makanan & Minuman',
+        notes: 'Makan Siang',
+        source: 'pending_sync',
+        bank: 'Manual',
+      );
+
+      expect(pendingTx.isPendingSync, isTrue);
+
+      // Simulasi hasil sync: Backend POST /transactions mengembalikan data tanpa field 'id'
+      final syncedTx = TransactionModel(
+        id: pendingTx.referenceId, // fallback ke clientRefId
+        emailId: pendingTx.emailId,
+        referenceId: pendingTx.referenceId,
+        date: pendingTx.date,
+        type: pendingTx.type,
+        amount: pendingTx.amount,
+        merchant: pendingTx.merchant,
+        category: pendingTx.category,
+        notes: pendingTx.notes,
+        source: 'manual', // diubah dari pending_sync
+        bank: pendingTx.bank,
+      );
+
+      expect(syncedTx.isPendingSync, isFalse);
+      expect(syncedTx.id, equals('MAN-OFFLINE-100'));
+      expect(syncedTx.source, equals('manual'));
+    });
   });
 }

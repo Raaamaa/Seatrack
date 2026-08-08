@@ -3,20 +3,28 @@ const express = require('express');
 const router = express.Router();
 const { generateAuthUrl, handleOAuthCallback } = require('../config/googleAuth');
 
-// Middleware sederhana pembanding ADMIN_API_KEY
+// Middleware pembanding ADMIN_API_KEY (Fail-Closed)
 function verifyAdminKey(req, res, next) {
   const adminKey = process.env.ADMIN_API_KEY;
-  // Jika ADMIN_API_KEY di-set, wajibkan verifikasi.
-  if (adminKey) {
-    const keyFromHeader = req.headers['x-admin-key'];
-    const keyFromQuery = req.query.admin_key;
-    if (keyFromHeader !== adminKey && keyFromQuery !== adminKey) {
-      return res.status(401).json({
-        success: false,
-        message: 'Akses ditolak. Header x-admin-key atau query admin_key tidak valid.'
-      });
-    }
+
+  // Fail-Closed: Jika ADMIN_API_KEY belum dikonfigurasi di environment server
+  if (!adminKey || adminKey.trim() === '') {
+    return res.status(500).json({
+      success: false,
+      message: 'Kesalahan Konfigurasi Server: ADMIN_API_KEY belum dikonfigurasi di server.'
+    });
   }
+
+  const keyFromHeader = req.headers['x-admin-key'];
+  const keyFromQuery = req.query.admin_key;
+
+  if (keyFromHeader !== adminKey && keyFromQuery !== adminKey) {
+    return res.status(401).json({
+      success: false,
+      message: 'Akses ditolak. Header x-admin-key atau query admin_key tidak valid.'
+    });
+  }
+
   next();
 }
 
@@ -57,3 +65,4 @@ router.get('/callback', async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.verifyAdminKey = verifyAdminKey;
