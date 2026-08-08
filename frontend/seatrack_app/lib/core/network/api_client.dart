@@ -9,13 +9,16 @@ class ApiClient {
     defaultValue: 'http://10.0.2.2:3000/api',
   );
 
+  // Default: http.Client() asli. Bisa di-override untuk testing.
+  static http.Client client = http.Client();
+
   static Future<Map<String, dynamic>> get(String endpoint, {Map<String, String>? queryParams}) async {
     try {
       Uri uri = Uri.parse('$_baseUrl$endpoint');
       if (queryParams != null) {
         uri = uri.replace(queryParameters: queryParams);
       }
-      final response = await http.get(uri, headers: {'Content-Type': 'application/json'});
+      final response = await client.get(uri, headers: {'Content-Type': 'application/json'});
       return _handleResponse(response);
     } on SocketException {
       throw Exception('Tidak ada koneksi internet. Menggunakan data cache lokal.');
@@ -24,7 +27,7 @@ class ApiClient {
 
   static Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> body) async {
     try {
-      final response = await http.post(
+      final response = await client.post(
         Uri.parse('$_baseUrl$endpoint'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
@@ -37,7 +40,7 @@ class ApiClient {
 
   static Future<Map<String, dynamic>> patch(String endpoint, Map<String, dynamic> body) async {
     try {
-      final response = await http.patch(
+      final response = await client.patch(
         Uri.parse('$_baseUrl$endpoint'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
