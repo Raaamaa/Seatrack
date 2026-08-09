@@ -263,6 +263,49 @@ Rp0
     });
   });
 
+  test('parseBriAmount prioritizes "Nominal" over "Total Transaksi" when Biaya Admin > 0', () => {
+    // Regression guard: Total Transaksi (110.000) = Nominal (100.000) + Biaya Admin (10.000).
+    // Kedua sample asli kita punya Biaya Admin Rp0 sehingga Total == Nominal secara kebetulan;
+    // kasus ini membuktikan parser tetap ambil "Nominal", bukan "Total Transaksi", saat keduanya berbeda.
+    const bodyWithAdminFee = `
+Total Transaksi
+Rp110.000
+Nomor Referensi
+174178940999
+Nominal
+Rp100.000
+Biaya Admin
+Rp10.000
+`;
+
+    expect(parseBriAmount(bodyWithAdminFee)).toBe(100000);
+  });
+
+  test('parseBriAmount falls back to "Total Transaksi" when "Nominal" field is absent', () => {
+    // Regression guard: sebelumnya "Rp?" di regex (bukan "(?:Rp)?") memaksa huruf "R" wajib
+    // muncul LAGI setelah literal "Rp" pertama dikonsumsi, sehingga fallback bare-"Rp" tidak
+    // pernah bisa cocok tanpa label "Total Transaksi"/"Nominal" mendahuluinya.
+    const bodyNoNominalLabel = `
+Pembayaran QRIS sebesar Rp75.000 berhasil.
+Nomor Referensi
+174178941234
+`;
+
+    expect(parseBriAmount(bodyNoNominalLabel)).toBe(75000);
+  });
+
+  test('parseBriAmount matches "Nominal" field even without "Rp" currency prefix', () => {
+    // Regression guard: varian email di mana field Nominal ditulis tanpa "Rp" di depannya.
+    const bodyNominalNoPrefix = `
+Nominal
+100.000
+Nomor Referensi
+174178941234
+`;
+
+    expect(parseBriAmount(bodyNominalNoPrefix)).toBe(100000);
+  });
+
   test('returns null when BRI date format is invalid (fail-loud)', () => {
     const emailData = {
       id: 'msg-bri-invalid',

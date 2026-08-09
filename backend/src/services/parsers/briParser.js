@@ -6,8 +6,9 @@ const { parseDate } = require('../../utils/dateHelper');
 
 const PATTERNS = {
   // Field Nominal diutamakan untuk menghindari ketidaksesuaian saat ada Biaya Admin
-  NOMINAL_FIELD: /(?:Nominal)[\s\n\r:]+Rp?\s?([\d.]+)/i,
-  TOTAL_FIELD: /(?:Total\s+Transaksi|Rp)\s*[\n\r:]*\s*Rp?\s?([\d.]+)/i,
+  // CATATAN: (?:Rp)? (bukan Rp?) — "Rp?" berarti "R wajib, p opsional", bukan "Rp opsional".
+  NOMINAL_FIELD: /(?:Nominal)[\s\n\r:]+(?:Rp)?\s?([\d.]+)/i,
+  TOTAL_FIELD: /(?:Total\s+Transaksi|Rp)\s*[\n\r:]*\s*(?:Rp)?\s?([\d.]+)/i,
   // Menangkap Nomor Referensi / No. Ref
   REFERENCE_ID: /(?:No\.?\s*Ref|Nomor\s*Referensi)[\s\n\r:]+([A-Z0-9]+)/i,
   // Menangkap Nama Merchant jika ada
