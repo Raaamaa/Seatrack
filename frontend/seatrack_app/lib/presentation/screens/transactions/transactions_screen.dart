@@ -44,7 +44,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   final List<String> _banks = [
     'Semua',
     'SeaBank',
-    'BCA',
+    'BRI',
     'Jago',
     'Manual'
   ];

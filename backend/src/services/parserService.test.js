@@ -1,6 +1,8 @@
-const { parseSeaBankEmail, detectTransactionType, parseAmount, parseDate, parseMerchant, autoAssignCategory } = require('./parsers/seabankParser');
-const { parseBcaEmail } = require('./parsers/bcaParser');
+const { parseSeaBankEmail, detectTransactionType, parseAmount, parseMerchant } = require('./parsers/seabankParser');
+const { parseBriEmail, detectTransactionType: detectBriType, parseBriAmount, parseBriMerchant } = require('./parsers/briParser');
 const { parseEmail } = require('./parserService');
+const { autoAssignCategory } = require('../utils/categoryHelper');
+const { parseDate } = require('../utils/dateHelper');
 const { sanitizeFormulaInput } = require('./sheetsService');
 const { withRetry } = require('../utils/retryHelper');
 
@@ -57,7 +59,7 @@ describe('Sanitize Formula Input', () => {
 });
 
 describe('Parser Service Utils', () => {
-  test('detectTransactionType detects correct types', () => {
+  test('detectTransactionType detects correct types for SeaBank', () => {
     expect(detectTransactionType('Dana Diterima', 'Uang masuk dari Budi')).toBe('Transfer Masuk');
     expect(detectTransactionType('Transfer Berhasil', 'Transfer keluar ke Anto')).toBe('Transfer Keluar');
     expect(detectTransactionType('Pembayaran Berhasil', 'QRIS payment to Toko Baju')).toBe('QRIS');
@@ -71,28 +73,36 @@ describe('Parser Service Utils', () => {
     expect(parseAmount('50.000')).toBe(50000);
   });
 
-  test('parseDate parses Indonesian month names correctly', () => {
-    const body = 'Transaksi pada 12 Juni 2026 14:30 WIB';
-    expect(parseDate(body)).toBe('2026-06-12T14:30:00+07:00');
+  test('parseDate parses full and abbreviated Indonesian month names correctly', () => {
+    expect(parseDate('Transaksi pada 12 Juni 2026 14:30 WIB')).toBe('2026-06-12T14:30:00+07:00');
+    expect(parseDate('Transaksi pada 12 Jun 2026 14:30 WIB')).toBe('2026-06-12T14:30:00+07:00');
+    expect(parseDate('Tanggal: 09 Jul 2026, 20:51:08 WIB')).toBe('2026-07-09T20:51:00+07:00');
   });
 
   test('parseDate parses numeric dates correctly', () => {
-    const body = 'Transaksi pada 12/06/2026 14:30';
-    expect(parseDate(body)).toBe('2026-06-12T14:30:00+07:00');
+    expect(parseDate('Transaksi pada 12/06/2026 14:30')).toBe('2026-06-12T14:30:00+07:00');
   });
 
-  test('parseMerchant parses merchant name correctly', () => {
+  test('parseDate throws error for invalid date format (fail-loud)', () => {
+    expect(() => parseDate('Tidak ada tanggal di sini')).toThrow();
+  });
+
+  test('parseMerchant parses SeaBank merchant name correctly', () => {
     expect(parseMerchant('Transfer Keluar', 'Transfer kepada ANTO SUSANTO berhasil')).toBe('ANTO SUSANTO');
     expect(parseMerchant('Transfer Masuk', 'Transfer dari BUDI UTOMO telah masuk')).toBe('BUDI UTOMO');
     expect(parseMerchant('QRIS', 'Pembayaran QRIS ke Kopi Kenangan berhasil')).toBe('Kopi Kenangan');
   });
 
-  test('autoAssignCategory assigns correct categories', () => {
+  test('autoAssignCategory assigns correct categories with payment rail priority', () => {
     expect(autoAssignCategory('Transfer Masuk', 'Budi')).toBe('Pemasukan');
+    expect(autoAssignCategory('Transfer Keluar', 'ShopeePay')).toBe('Lainnya');
+    expect(autoAssignCategory('Transfer Keluar', 'GoPay')).toBe('Lainnya');
     expect(autoAssignCategory('Transfer Keluar', 'Gojek')).toBe('Transportasi');
     expect(autoAssignCategory('Transfer Keluar', 'Indomaret')).toBe('Belanja');
+    expect(autoAssignCategory('Transfer Keluar', 'Shopee Official Store')).toBe('Belanja');
     expect(autoAssignCategory('Transfer Keluar', 'PLN')).toBe('Tagihan & Utilitas');
     expect(autoAssignCategory('Transfer Keluar', 'KFC')).toBe('Makanan & Minuman');
+    expect(autoAssignCategory('QRIS', 'WARUNG DWI YA')).toBe('Makanan & Minuman');
     expect(autoAssignCategory('QRIS', 'Toko Kue')).toBe('Belanja');
     expect(autoAssignCategory('Transfer Keluar', 'Random Merchant')).toBe('Lainnya');
   });
@@ -122,11 +132,11 @@ describe('parseSeaBankEmail Integration', () => {
     });
   });
 
-  test('parses outgoing transfer email successfully', () => {
+  test('parses outgoing transfer email with abbreviated month successfully', () => {
     const emailData = {
       id: 'msg-2',
       subject: 'Transfer Berhasil - SeaBank',
-      body: 'Transfer sebesar Rp 150.000 ke ANTO SUSANTO berhasil pada 11 Juni 2026 10:15. No Referensi: Ref67890.'
+      body: 'Transfer sebesar Rp 150.000 ke ANTO SUSANTO berhasil pada 11 Jun 2026 10:15. No Referensi: Ref67890.'
     };
 
     const result = parseSeaBankEmail(emailData);
@@ -144,6 +154,125 @@ describe('parseSeaBankEmail Integration', () => {
       bank: 'SeaBank'
     });
   });
+
+  test('returns null when date parsing fails (fail-loud)', () => {
+    const emailData = {
+      id: 'msg-bad-date',
+      subject: 'Transfer Berhasil - SeaBank',
+      body: 'Transfer sebesar Rp 150.000 ke ANTO SUSANTO berhasil tanpa tanggal.'
+    };
+
+    const result = parseSeaBankEmail(emailData);
+    expect(result).toBeNull();
+  });
+});
+
+describe('parseBriEmail Integration (Real Email Samples)', () => {
+  const briSample1 = `
+Halo, AKHMAD RIZKI RAMADHANI
+Berikut ini adalah informasi transaksi yang telah Anda lakukan di Aplikasi BRImo.
+10 Juli 2026, 12:33:06 WIB
+Total Transaksi
+Rp465.997
+No. Ref
+174473869740
+Jenis Transaksi
+ShopeePay
+Catatan
+-
+Nominal
+Rp465.997
+Biaya Admin
+Rp0
+`;
+
+  const briSample2 = `
+Total Transaksi
+25.000
+Tujuan
+MBL324495*WARUNG DWI YA
+QRIS Bayar
+9360000210065742388
+Nomor Referensi
+174178940118
+Tanggal Transaksi
+09 Jul 2026, 20:51:08 WIB
+Rekening Sumber Dana
+5845 **** **** 537
+Nama Sumber Dana
+AKHMAD RIZKI RAMADHANI
+Jenis Transaksi
+QRIS Bayar
+Nama Merchant
+MBL324495*WARUNG DWI YA
+Lokasi Merchant
+CIREBON
+Nama Penerbit
+BRI
+Catatan
+-
+Nominal
+Rp25.000
+Biaya Admin
+Rp0
+`;
+
+  test('parses BRI Sample 1 (Top-up ShopeePay via BRImo) correctly', () => {
+    const emailData = {
+      id: 'msg-bri-1',
+      subject: 'Notifikasi Transaksi BRImo',
+      body: briSample1
+    };
+
+    const result = parseBriEmail(emailData);
+    expect(result).toEqual({
+      emailId: 'msg-bri-1',
+      referenceId: '174473869740',
+      date: '2026-07-10T12:33:00+07:00',
+      type: 'Transfer Keluar',
+      amount: 465997,
+      merchant: 'ShopeePay',
+      category: 'Lainnya',
+      notes: '',
+      source: 'auto',
+      rawSubject: 'Notifikasi Transaksi BRImo',
+      bank: 'BRI'
+    });
+  });
+
+  test('parses BRI Sample 2 (QRIS Bayar at Merchant Warung) correctly', () => {
+    const emailData = {
+      id: 'msg-bri-2',
+      subject: 'Notifikasi Pembayaran QRIS BRI',
+      body: briSample2
+    };
+
+    const result = parseBriEmail(emailData);
+    expect(result).toEqual({
+      emailId: 'msg-bri-2',
+      referenceId: '174178940118',
+      date: '2026-07-09T20:51:00+07:00',
+      type: 'QRIS',
+      amount: 25000,
+      merchant: 'WARUNG DWI YA',
+      category: 'Makanan & Minuman',
+      notes: '',
+      source: 'auto',
+      rawSubject: 'Notifikasi Pembayaran QRIS BRI',
+      bank: 'BRI'
+    });
+  });
+
+  test('returns null when BRI date format is invalid (fail-loud)', () => {
+    const emailData = {
+      id: 'msg-bri-invalid',
+      subject: 'Notifikasi BRI',
+      body: 'Nominal Rp50.000 tanpa tanggal transaksi'
+    };
+
+    const result = parseBriEmail(emailData);
+    expect(result).toBeNull();
+  });
 });
 
 describe('parseEmail Orchestrator Routing', () => {
@@ -158,24 +287,24 @@ describe('parseEmail Orchestrator Routing', () => {
     expect(result.amount).toBe(50000);
   });
 
-  test('routes BCA email based on sender', () => {
+  test('routes BRI email based on sender', () => {
     const emailData = {
-      id: 'msg-bca',
-      subject: 'Transaksi KlikBCA',
-      body: 'Debet sebesar Rp 100,000 ke TOKO INDO pada 10/06/2026'
+      id: 'msg-bri',
+      subject: 'Notifikasi BRImo',
+      body: 'Nominal Rp 100.000 pada 10/06/2026 14:30. No. Ref: 12345.'
     };
-    const result = parseEmail(emailData, 'ebanking@klikbca.com');
-    expect(result.bank).toBe('BCA');
+    const result = parseEmail(emailData, 'BankBRI@bri.co.id');
+    expect(result.bank).toBe('BRI');
     expect(result.amount).toBe(100000);
   });
 
   test('routes based on subject fallback if sender does not match', () => {
     const emailData = {
-      id: 'msg-seabank-fallback',
-      subject: 'Your SeaBank Transfer is Successful',
-      body: 'Dana sebesar Rp 12.000 ke TOKO INDO masuk pada 10/06/2026 14:30'
+      id: 'msg-bri-fallback',
+      subject: 'Notifikasi Transaksi BRImo',
+      body: 'Nominal Rp 12.000 pada 10/06/2026 14:30. No. Ref: 67890.'
     };
     const result = parseEmail(emailData, 'unknown@example.com');
-    expect(result.bank).toBe('SeaBank');
+    expect(result.bank).toBe('BRI');
   });
 });

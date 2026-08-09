@@ -76,7 +76,7 @@ class BalanceCard extends StatelessWidget {
                       onChanged: (val) {
                         if (val != null) onBankChanged(val);
                       },
-                      items: ['Semua', 'SeaBank', 'BCA', 'Jago', 'Manual']
+                      items: ['Semua', 'SeaBank', 'BRI', 'Jago', 'Manual']
                           .map((bank) => DropdownMenuItem(
                                 value: bank,
                                 child: Text(bank),

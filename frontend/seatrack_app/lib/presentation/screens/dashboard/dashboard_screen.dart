@@ -16,7 +16,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String _selectedBank = 'Semua';
-  final List<String> _banks = ['Semua', 'SeaBank', 'BCA', 'Jago', 'Manual'];
+  final List<String> _banks = ['Semua', 'SeaBank', 'BRI', 'Jago', 'Manual'];
 
   int _selectedMonth = DateTime.now().month;
   int _selectedYear = DateTime.now().year;

@@ -40,7 +40,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     'Lainnya'
   ];
 
-  final List<String> _banks = ['Manual', 'SeaBank', 'BCA', 'Jago'];
+  final List<String> _banks = ['Manual', 'SeaBank', 'BRI', 'Jago'];
 
   @override
   void dispose() {

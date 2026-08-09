@@ -41,7 +41,7 @@ void main() {
       TransactionModel(
         id: '1',
         emailId: 'e1',
-        referenceId: 'REF-BCA-01',
+        referenceId: 'REF-BRI-01',
         date: DateTime(2026, 8, 1),
         type: 'Pengeluaran',
         amount: 50000,
@@ -49,7 +49,7 @@ void main() {
         category: 'Makanan & Minuman',
         notes: 'Es Kopi Susu',
         source: 'auto',
-        bank: 'BCA',
+        bank: 'BRI',
       ),
       TransactionModel(
         id: '2',
@@ -67,7 +67,7 @@ void main() {
       TransactionModel(
         id: '3',
         emailId: 'e3',
-        referenceId: 'REF-BCA-03',
+        referenceId: 'REF-BRI-03',
         date: DateTime(2026, 8, 3),
         type: 'QRIS',
         amount: 25000,
@@ -75,7 +75,7 @@ void main() {
         category: 'Kebutuhan Harian',
         notes: 'Camilan dan Air Mineral',
         source: 'auto',
-        bank: 'BCA',
+        bank: 'BRI',
       ),
     ];
 
@@ -93,8 +93,8 @@ void main() {
       provider.setType('Pengeluaran');
       expect(provider.selectedType, equals('Pengeluaran'));
 
-      provider.setBank('BCA');
-      expect(provider.selectedBank, equals('BCA'));
+      provider.setBank('BRI');
+      expect(provider.selectedBank, equals('BRI'));
     });
 
     test('Logic filteredTransactions melakukan penyaringan dengan tepat', () {

@@ -15,7 +15,7 @@ void main() {
         'category': 'Transfer',
         'notes': 'Pembayaran piutang',
         'source': 'auto',
-        'bank': 'BCA',
+        'bank': 'BRI',
       };
 
       final model = TransactionModel.fromJson(json);
@@ -29,7 +29,7 @@ void main() {
       expect(model.category, equals('Transfer'));
       expect(model.notes, equals('Pembayaran piutang'));
       expect(model.source, equals('auto'));
-      expect(model.bank, equals('BCA'));
+      expect(model.bank, equals('BRI'));
       expect(model.isIncome, isTrue);
       expect(model.isPendingSync, isFalse);
     });
