@@ -324,4 +324,48 @@ void main() {
       expect(Hive.box<String>('pending_transactions_queue').containsKey('key-orphan'), isFalse);
     });
   });
+
+  group('updateTransactionDetails() Unit Test Suite', () {
+    tearDown(() {
+      ApiClient.client = http.Client();
+    });
+
+    test('updateTransactionDetails() sukses memperbarui category dan notes secara in-memory dan cache', () async {
+      final cacheBox = Hive.box<String>('transactions_cache');
+      final txModel = TransactionModel(
+        id: 'TXN-100',
+        emailId: 'email-100',
+        referenceId: 'REF-100',
+        date: DateTime(2026, 8, 10),
+        type: 'Pengeluaran',
+        amount: 25000,
+        merchant: 'Kopi Kenangan',
+        category: 'Lainnya',
+        notes: 'Catatan Lama',
+        source: 'auto',
+        bank: 'BRI',
+      );
+      await cacheBox.put('data', jsonEncode([txModel.toJson()]));
+
+      ApiClient.client = MockClient((request) async {
+        if (request.url.path.contains('/transactions/TXN-100/details') && request.method == 'PATCH') {
+          return http.Response(jsonEncode({
+            'success': true,
+            'message': 'Detail transaksi berhasil diperbarui.'
+          }), 200);
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final provider = TransactionProvider();
+      while (provider.isSyncingQueue) {
+        await Future.delayed(const Duration(milliseconds: 5));
+      }
+
+      await provider.updateTransactionDetails('TXN-100', category: 'Makanan & Minuman', notes: 'Catatan Baru');
+
+      expect(provider.transactions.first.category, equals('Makanan & Minuman'));
+      expect(provider.transactions.first.notes, equals('Catatan Baru'));
+    });
+  });
 }

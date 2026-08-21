@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { getAuthClient } = require('../config/googleAuth');
-const { getTransactions, saveTransactions, updateTransactionCategory } = require('../services/sheetsService');
+const { getTransactions, saveTransactions, updateTransactionCategory, updateTransactionDetails } = require('../services/sheetsService');
 const { runEmailSync } = require('../services/schedulerService');
 
 // GET /api/transactions — ambil semua transaksi dengan filter opsional
@@ -53,6 +53,24 @@ router.patch('/:id/category', async (req, res, next) => {
     const auth = await getAuthClient();
     await updateTransactionCategory(auth, req.params.id, category);
     res.json({ success: true, message: 'Kategori berhasil diperbarui.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PATCH /api/transactions/:id/details — update category & notes (sekaligus/parsial)
+router.patch('/:id/details', async (req, res, next) => {
+  try {
+    const { category, notes } = req.body;
+    if (category === undefined && notes === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Minimal salah satu dari category atau notes harus dikirim.'
+      });
+    }
+    const auth = await getAuthClient();
+    await updateTransactionDetails(auth, req.params.id, { category, notes });
+    res.json({ success: true, message: 'Detail transaksi berhasil diperbarui.' });
   } catch (error) {
     next(error);
   }

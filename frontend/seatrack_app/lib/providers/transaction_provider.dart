@@ -317,6 +317,36 @@ class TransactionProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> updateTransactionDetails(String transactionId, {String? category, String? notes}) async {
+    final Map<String, dynamic> body = {};
+    if (category != null) body['category'] = category;
+    if (notes != null) body['notes'] = notes;
+
+    if (body.isEmpty) return;
+
+    await ApiClient.patch('/transactions/$transactionId/details', body);
+
+    final index = _transactions.indexWhere((t) => t.id == transactionId);
+    if (index != -1) {
+      final oldTx = _transactions[index];
+      _transactions[index] = TransactionModel(
+        id: oldTx.id,
+        emailId: oldTx.emailId,
+        referenceId: oldTx.referenceId,
+        date: oldTx.date,
+        type: oldTx.type,
+        amount: oldTx.amount,
+        merchant: oldTx.merchant,
+        category: category ?? oldTx.category,
+        notes: notes ?? oldTx.notes,
+        source: oldTx.source,
+        bank: oldTx.bank,
+      );
+      _saveToCache(_transactions);
+      notifyListeners();
+    }
+  }
+
   Future<void> syncEmails() async {
     await ApiClient.post('/transactions/sync', {});
     await fetchTransactions();

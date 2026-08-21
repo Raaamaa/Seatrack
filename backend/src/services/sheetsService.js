@@ -270,11 +270,54 @@ async function updateTransactionCategory(auth, transactionId, newCategory) {
   });
 }
 
+/**
+ * Update category dan/atau notes sebuah transaksi berdasarkan ID (menggunakan Queue, Retry & Formula Sanitization).
+ * Mengambil data baris lama dari kolom A:I dalam 1 kali read call, lalu memperbarui H:I dalam 1 kali write call.
+ */
+async function updateTransactionDetails(auth, transactionId, { category, notes }) {
+  return enqueueWrite(async () => {
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // 1. Ambil kolom A sampai I dari sheet Transactions (A=ID, H=Category, I=Notes)
+    const res = await withRetry(() => sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAMES.TRANSACTIONS}!A:I`,
+    }));
+
+    const rows = res.data.values || [];
+    const rowIndex = rows.findIndex(r => r[0] === transactionId);
+    if (rowIndex === -1) throw new Error('Transaksi tidak ditemukan');
+
+    const rowNumber = rowIndex + 1; // 1-based index
+    const targetRow = rows[rowIndex] || [];
+    
+    // Ekstrak nilai eksisting (Index 7 = Kolom H Category, Index 8 = Kolom I Notes)
+    const oldCategory = targetRow[7] || '';
+    const oldNotes = targetRow[8] || '';
+
+    // Preserve nilai lama jika field bernilai undefined (tidak dikirim)
+    const finalCategory = category !== undefined ? category : oldCategory;
+    const finalNotes = notes !== undefined ? notes : oldNotes;
+
+    const sanitizedCat = sanitizeFormulaInput(finalCategory || '');
+    const sanitizedNotes = sanitizeFormulaInput(finalNotes || '');
+
+    // 2. Write batch ke range H{rowNumber}:I{rowNumber} dalam 1 kali API call
+    await withRetry(() => sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAMES.TRANSACTIONS}!H${rowNumber}:I${rowNumber}`,
+      valueInputOption: 'RAW',
+      resource: { values: [[sanitizedCat, sanitizedNotes]] },
+    }));
+  });
+}
+
 module.exports = { 
   initializeSheets, 
   getProcessedEmailIds, 
   saveTransactions, 
   getTransactions, 
   updateTransactionCategory,
+  updateTransactionDetails,
   sanitizeFormulaInput 
 };

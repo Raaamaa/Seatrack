@@ -22,6 +22,7 @@ class TransactionDetailScreen extends StatefulWidget {
 
 class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   late String _selectedCategory;
+  late String _notes;
 
   final List<String> _categories = [
     'Makanan & Minuman',
@@ -39,6 +40,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   void initState() {
     super.initState();
     _selectedCategory = widget.transaction.category;
+    _notes = widget.transaction.notes;
   }
 
   Color _getTypeColor() {
@@ -101,6 +103,60 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         SnackBar(content: Text('Gagal memperbarui kategori: $e')),
       );
       setState(() => _selectedCategory = widget.transaction.category);
+    }
+  }
+
+  void _showEditNotesDialog() {
+    final controller = TextEditingController(text: _notes);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Catatan'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'Masukkan catatan...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _handleNotesSave(controller.text.trim());
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleNotesSave(String newNotes) async {
+    if (newNotes == _notes) return;
+    final oldNotes = _notes;
+
+    setState(() => _notes = newNotes);
+
+    try {
+      await Provider.of<TransactionProvider>(context, listen: false)
+          .updateTransactionDetails(widget.transaction.id, notes: newNotes);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Catatan berhasil diperbarui.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _notes = oldNotes);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui catatan: $e')),
+      );
     }
   }
 
@@ -222,10 +278,35 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       ),
                     ),
 
-                    if (widget.transaction.notes.isNotEmpty) ...[
-                      const Divider(color: AppColors.divider),
-                      _buildDetailRow('Catatan', widget.transaction.notes),
-                    ],
+                    const Divider(color: AppColors.divider),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Catatan', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary)),
+                              IconButton(
+                                icon: const Icon(Icons.edit, size: 16, color: AppColors.primary),
+                                onPressed: _showEditNotesDialog,
+                                constraints: const BoxConstraints(),
+                                padding: EdgeInsets.zero,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _notes.isNotEmpty ? _notes : 'Belum ada catatan',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontStyle: _notes.isNotEmpty ? FontStyle.normal : FontStyle.italic,
+                              color: _notes.isNotEmpty ? AppColors.textPrimary : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
