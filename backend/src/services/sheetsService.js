@@ -312,6 +312,59 @@ async function updateTransactionDetails(auth, transactionId, { category, notes }
   });
 }
 
+/**
+ * Menghitung ringkasan keuangan (agregat income, expense, netBalance, categoryBreakdown, weeklyExpense)
+ * dari daftar transaksi yang diberikan.
+ * Menjadi SINGLE SOURCE OF TRUTH untuk dashboard dan voice grounding.
+ * @param {Array} transactions - List of transactions
+ * @param {object} period - { month, year, bank }
+ * @returns {object} Summary data
+ */
+function calculateFinancialSummary(transactions, period = {}) {
+  const totalIncome = transactions
+    .filter(t => t.type === 'Transfer Masuk' || t.type === 'Pemasukan')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalExpense = transactions
+    .filter(t => t.type !== 'Transfer Masuk' && t.type !== 'Pemasukan')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  // Breakdown per kategori pengeluaran
+  const categoryBreakdown = transactions.reduce((acc, t) => {
+    if (t.type !== 'Transfer Masuk' && t.type !== 'Pemasukan') {
+      acc[t.category] = (acc[t.category] || 0) + t.amount;
+    }
+    return acc;
+  }, {});
+
+  // Pengeluaran per 4 minggu
+  const weeklyExpense = [0, 0, 0, 0];
+  transactions.forEach(t => {
+    if (t.type !== 'Transfer Masuk' && t.type !== 'Pemasukan') {
+      const day = new Date(t.date).getDate();
+      const weekIndex = Math.min(Math.floor((day - 1) / 7), 3);
+      weeklyExpense[weekIndex] += t.amount;
+    }
+  });
+
+  return {
+    period: {
+      month: period.month,
+      year: period.year,
+      bank: period.bank || 'Semua'
+    },
+    totalIncome,
+    totalExpense,
+    netBalance: totalIncome - totalExpense,
+    transactionCount: transactions.length,
+    categoryBreakdown,
+    weeklyExpense: weeklyExpense.map((amount, i) => ({
+      week: `Minggu ${i + 1}`,
+      amount
+    }))
+  };
+}
+
 module.exports = { 
   initializeSheets, 
   getProcessedEmailIds, 
@@ -319,5 +372,6 @@ module.exports = {
   getTransactions, 
   updateTransactionCategory,
   updateTransactionDetails,
+  calculateFinancialSummary,
   sanitizeFormulaInput 
 };

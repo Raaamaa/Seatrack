@@ -1,0 +1,19 @@
+services:
+  backend:
+    container_name: seatrack-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    volumes:
+      # Mount folder credentials agar credentials.json dan token.json Google tetap tersimpan permanen
+      - ./backend/credentials:/app/credentials
+      # Mount source code jika ingin perubahan kode langsung ter-update
+      - ./backend/src:/app/src

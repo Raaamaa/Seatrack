@@ -45,10 +45,10 @@ describe('Retry Helper (withRetry)', () => {
 
 describe('Sanitize Formula Input', () => {
   test('prepends single quote to inputs starting with formula special characters', () => {
-    expect(sanitizeFormulaInput('=SUM(1,2)')).toBe("'=SUM(1,2)");
-    expect(sanitizeFormulaInput('+12345')).toBe("'+12345");
-    expect(sanitizeFormulaInput('-12345')).toBe("'-12345");
-    expect(sanitizeFormulaInput('@cmd')).toBe("'@cmd");
+    expect(sanitizeFormulaInput('=SUM(1,2)')).toBe('\'=SUM(1,2)');
+    expect(sanitizeFormulaInput('+12345')).toBe('\'+12345');
+    expect(sanitizeFormulaInput('-12345')).toBe('\'-12345');
+    expect(sanitizeFormulaInput('@cmd')).toBe('\'@cmd');
   });
 
   test('does not alter normal string or number inputs', () => {

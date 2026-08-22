@@ -64,7 +64,7 @@ async function fetchNewTransactionEmails(auth, processedIds = []) {
     const newMessages = messages.filter(msg => !processedIds.includes(msg.id));
 
     if (newMessages.length === 0) {
-      console.log(`[Gmail] Tidak ada email transaksi baru.`);
+      console.log('[Gmail] Tidak ada email transaksi baru.');
       return [];
     }
 
