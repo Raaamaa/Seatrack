@@ -2,7 +2,15 @@ node_modules
 npm-debug.log
 .git
 .gitignore
+.env
+.env.*
+!.env.example
 .env.local
+credentials/
+*.pem
+*.key
+*.p12
+*.log
 .DS_Store
 dist
 coverage
